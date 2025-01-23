@@ -94,8 +94,8 @@ class AspenScraper:
                     if students_data and len(students_data) > 0:
                         student = students_data[0]  # Get first student
                         self.student_id = student.get('studentOid')
-                        student_name = student.get('name')
-                        print(f"Found student: {student_name}")
+                        self.student_name = student.get('name')
+                        print(f"Found student: {self.student_name}")
                         print(f"Student ID: {self.student_id}")
                     else:
                         print("No student data found in response")

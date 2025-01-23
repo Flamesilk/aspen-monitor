@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
 from bot.scraper import AspenScraper
 # from bot.email_service import send_feedback_email
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -67,37 +68,68 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Get student name from the scraper
+    student_name = getattr(scraper, 'student_name', None)
+    print(student_name)
+
     # Format and send grades
-    message = "📚 Current Grades:\n\n"
+    message = "📚 Current Grades"
+    if student_name:
+        message += f" for {student_name}"
+    message += ":\n\n"
+
+    has_content = False
+
     for class_info in class_list:
         course_name = class_info.get('courseName', '')
-        grade = class_info.get('sectionTermAverage', 'No grade')
+        grade = class_info.get('sectionTermAverage', '')
         teacher = class_info.get('teacherName', '')
 
+        # Skip if no grade and no assignments
+        if not grade and not class_info.get('percentageValue'):
+            continue
+
+        has_content = True
         message += f"📘 {course_name}\n"
-        message += f"Grade: {grade}\n"
+        message += f"Grade: {grade or 'No grade'}\n"
         message += f"Teacher: {teacher}\n"
 
-        # Only get assignments if there's a grade
+        # Get assignments if available
         if class_info.get('percentageValue'):
             schedule_oid = class_info.get('studentScheduleOid')
             if schedule_oid:
                 assignments = scraper.get_grade_details(schedule_oid)
                 if assignments:
+                    # Sort assignments by date (most recent first)
+                    sorted_assignments = sorted(
+                        assignments,
+                        key=lambda x: x.get('dueDate', 0),
+                        reverse=True
+                    )
+
                     message += "\nRecent Assignments:\n"
                     # Show only the 3 most recent assignments
-                    for assignment in assignments[:3]:
+                    for assignment in sorted_assignments[:3]:
                         name = assignment.get('name', '')
                         category = assignment.get('category', '')
+                        due_date = assignment.get('dueDate')
+
+                        # Format date
+                        date_str = ''
+                        if due_date:
+                            date_str = time.strftime('%Y-%m-%d', time.localtime(due_date/1000))
 
                         # Get score
                         score_elements = assignment.get('scoreElements', [])
                         score = "Not graded"
                         if score_elements:
                             score_info = score_elements[0]
-                            score = f"{score_info.get('score', 'No score')}"
+                            if score_info.get('score') is not None:
+                                score = f"{score_info.get('score')}"
 
-                        message += f"• {name} ({category}): {score}\n"
+                        message += f"• {name}\n"
+                        message += f"  📅 Due: {date_str}\n"
+                        message += f"  📝 {category}: {score}\n"
 
         message += "\n"
 
@@ -108,10 +140,16 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text=message
             )
             message = ""  # Reset message
+            has_content = False
 
     # Send any remaining message
-    if message:
+    if message and has_content:
         await context.bot.send_message(
             chat_id=chat_id,
             text=message
+        )
+    elif not has_content:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="No grades or assignments found for the current term."
         )
