@@ -28,8 +28,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     await update.message.reply_text(
         f"👋 Hello {update.effective_user.first_name}! Welcome to your Aspen Grade Monitor!\n\n"
-        "I'm here to help you keep track of your grades and assignments. "
-        "Think of me as your personal academic assistant who can fetch your latest grades anytime! 📚\n\n"
+        "I'm here to help you keep track of your CPS grades and assignments from Aspen. 📚\n\n"
         "<b>Here's what I can do for you:</b>\n\n"
         "📊 /grades - Fetch your current grades and recent assignments\n"
         "• See all your class grades\n"
