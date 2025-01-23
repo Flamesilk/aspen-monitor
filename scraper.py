@@ -1,11 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
-from decouple import config
 import time
 import json
 
-USERNAME = config("USERNAME")
-PASSWORD = config("PASSWORD")
+from config import ASPEN_USERNAME, ASPEN_PASSWORD
 
 class AspenScraper:
     def __init__(self):
@@ -39,8 +37,8 @@ class AspenScraper:
             'formFocusField': 'username',
             'mobile': 'false',
             'SSOLoginDone': '',
-            'username': USERNAME,
-            'password': PASSWORD,
+            'username': ASPEN_USERNAME,
+            'password': ASPEN_PASSWORD,
             'submit': 'Log On'
         }
 
