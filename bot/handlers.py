@@ -6,6 +6,7 @@ from bot.scraper import AspenScraper
 # from bot.email_service import send_feedback_email
 import logging
 import time
+from functools import wraps
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +42,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /grades command - fetches current grades and assignments"""
+
+    user = update.effective_user
+    username = user.username
+    first_name = user.first_name
+    last_name = user.last_name
+    is_authorized = (
+        username == "Burnem" or
+        (first_name == "X" and last_name == "H")
+    )
+
+    if not is_authorized:
+        await context.bot.send_message(
+            "⛔️ Sorry, you are not authorized to use this bot.\n\n"
+            "This bot is for private use only."
+        )
+        return
     chat_id = update.effective_chat.id
 
     # Send initial message
