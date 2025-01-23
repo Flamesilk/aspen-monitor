@@ -72,6 +72,19 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
     student_name = getattr(scraper, 'student_name', None)
     print(student_name)
 
+    def format_score(score_text, percentage=None):
+        """Helper function to format score with emoji indicators"""
+        try:
+            if percentage is not None:
+                score = float(percentage)
+                if score >= 90:
+                    return f'✅ {score_text}'  # Green checkmark for good scores
+                else:
+                    return f'⚠️ {score_text}'  # Warning symbol for scores below 90
+        except (ValueError, TypeError):
+            pass
+        return score_text
+
     # Format and send grades
     message = "📚 Current Grades"
     if student_name:
@@ -83,6 +96,7 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for class_info in class_list:
         course_name = class_info.get('courseName', '')
         grade = class_info.get('sectionTermAverage', '')
+        percentage = class_info.get('percentageValue')
         teacher = class_info.get('teacherName', '')
 
         # Skip if no grade and no assignments
@@ -91,7 +105,7 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         has_content = True
         message += f"📘 {course_name}\n"
-        message += f"Grade: {grade or 'No grade'}\n"
+        message += f"Grade: {format_score(grade or 'No grade', percentage)}\n"
         message += f"Teacher: {teacher}\n"
 
         # Get assignments if available
@@ -122,14 +136,16 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Get score
                         score_elements = assignment.get('scoreElements', [])
                         score = "Not graded"
+                        score_percentage = None
                         if score_elements:
                             score_info = score_elements[0]
                             if score_info.get('score') is not None:
                                 score = f"{score_info.get('score')}"
+                                score_percentage = score_info.get('scorePercent')
 
                         message += f"• {name}\n"
                         message += f"  📅 Due: {date_str}\n"
-                        message += f"  📝 {category}: {score}\n"
+                        message += f"  📝 {category}: {format_score(score, score_percentage)}\n"
 
         message += "\n"
 
