@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import config
-from telegram.ext import Application
+from telegram.ext import Application, JobQueue
 from typing import AsyncGenerator
 from bot.handlers import setup_commands
 
@@ -11,6 +11,7 @@ ptb = (
     .token(config.TELEGRAM_TOKEN)
     .read_timeout(7)
     .get_updates_read_timeout(42)
+    .job_queue(JobQueue())  # Create a new JobQueue instance
 )
 if config.ENV:
     ptb = ptb.updater(None)

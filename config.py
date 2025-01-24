@@ -1,5 +1,5 @@
 import os
-from decouple import config
+from decouple import config, Csv
 
 ASPEN_USERNAME = config("ASPEN_USERNAME")
 ASPEN_PASSWORD = config("ASPEN_PASSWORD")
@@ -23,3 +23,11 @@ DONATION_URL = config("DONATION_URL", None)
 # GEMINI_API_KEY = config("GEMINI_API_KEY", None)
 
 PORT = config('PORT', default=8000, cast=int)
+
+TIMEZONE = config('TIMEZONE', default='America/Chicago')
+
+# Get authorized chat IDs as a list of integers
+AUTHORIZED_CHAT_IDS = [
+    int(chat_id)
+    for chat_id in config('AUTHORIZED_CHAT_IDS', default='', cast=Csv())
+]

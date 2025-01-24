@@ -6,6 +6,7 @@ from telegram.ext import CommandHandler
 import uvicorn
 from bot.ptb import ptb, lifespan
 from bot.handlers import start, fetch_grades
+from bot.scheduler import setup_scheduler
 import config
 import logging
 
@@ -21,6 +22,9 @@ app = FastAPI(lifespan=lifespan) if config.ENV else FastAPI()
 # Add handlers
 ptb.add_handler(CommandHandler("start", start))
 ptb.add_handler(CommandHandler("grades", fetch_grades))
+
+# Initialize scheduler
+setup_scheduler(ptb)
 
 # Use webhook when running in prod (via gunicorn)
 if config.ENV:

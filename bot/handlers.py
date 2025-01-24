@@ -7,6 +7,7 @@ from bot.scraper import AspenScraper
 import logging
 import time
 from functools import wraps
+import config
 
 # Configure logging
 logging.basicConfig(
@@ -27,8 +28,10 @@ async def setup_commands(application: Application) -> None:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
+    chat_id = update.effective_chat.id
     await update.message.reply_text(
         f"👋 Hello {update.effective_user.first_name}! Welcome to your Aspen Grade Monitor!\n\n"
+        f"Your chat ID is: {chat_id}\n\n"
         "I'm here to help you keep track of your CPS grades and assignments from Aspen. 📚\n\n"
         "<b>Here's what I can do for you:</b>\n\n"
         "📊 /grades - Fetch your current grades and recent assignments\n"
@@ -43,22 +46,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /grades command - fetches current grades and assignments"""
 
-    user = update.effective_user
-    username = user.username
-    first_name = user.first_name
-    last_name = user.last_name
-    is_authorized = (
-        username == "Burnem" or
-        (first_name == "X" and last_name == "H")
-    )
+    chat_id = update.effective_chat.id
+    is_authorized = chat_id in config.AUTHORIZED_CHAT_IDS
 
     if not is_authorized:
-        await context.bot.send_message(
+        await update.message.reply_text(
             "⛔️ Sorry, you are not authorized to use this bot.\n\n"
             "This bot is for private use only."
         )
         return
-    chat_id = update.effective_chat.id
 
     # Send initial message
     await context.bot.send_message(
