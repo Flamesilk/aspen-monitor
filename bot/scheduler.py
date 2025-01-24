@@ -41,7 +41,7 @@ def setup_scheduler(app: Application):
     tz = pytz.timezone(config.TIMEZONE)
 
     # Schedule the job to run every day at 8 AM in the configured timezone
-    job_time = time(hour=14, minute=10, tzinfo=tz)
+    job_time = time(hour=15, minute=00, tzinfo=tz)
     app.job_queue.run_daily(
         fetch_and_notify,
         time=job_time,
