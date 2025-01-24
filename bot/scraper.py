@@ -19,6 +19,116 @@ class AspenScraper:
         }
         self.student_id = None
 
+    @staticmethod
+    def format_score(score_text, percentage=None):
+        """Helper function to format score with emoji indicators"""
+        try:
+            if percentage is not None:
+                score = float(percentage)
+                if score >= 90:
+                    return f'👏 {score_text}'  # Green checkmark for good scores
+                elif score >= 80:
+                    return f'⚠️ {score_text}'  # Warning symbol for scores between 80 and 89
+                else:
+                    return f'‼️ {score_text}'  # Red cross for scores below 80
+        except (ValueError, TypeError):
+            pass
+        return score_text
+
+    def format_grades_message(self, class_list, title="📚 Current Grades"):
+        """Format grades and assignments into a consistent message format"""
+        messages = []
+        current_message = title
+
+        if hasattr(self, 'student_name') and self.student_name:
+            current_message += f" for {self.student_name}"
+        current_message += ":\n\n"
+
+        has_content = False
+
+        for class_info in class_list:
+            course_name = class_info.get('courseName', '')
+            grade = class_info.get('sectionTermAverage', '')
+            percentage = class_info.get('percentageValue')
+            teacher = class_info.get('teacherName', '')
+
+            # Skip if no grade and no assignments
+            if not grade and not class_info.get('percentageValue'):
+                continue
+
+            has_content = True
+            class_message = f"📘 {course_name}\n"
+            class_message += "------------------------------\n"
+            class_message += f"Grade: {self.format_score(grade or 'No grade', percentage)}\n"
+            class_message += f"Teacher: {teacher}\n"
+
+            # Get assignments if available
+            if class_info.get('percentageValue'):
+                schedule_oid = class_info.get('studentScheduleOid')
+                if schedule_oid:
+                    assignments = self.get_grade_details(schedule_oid)
+                    if assignments:
+                        # Sort assignments by date (most recent first)
+                        sorted_assignments = sorted(
+                            assignments,
+                            key=lambda x: x.get('dueDate', 0),
+                            reverse=True
+                        )
+
+                        class_message += "\nRecent Assignments:\n"
+                        # Show only the 3 most recent assignments
+                        for assignment in sorted_assignments[:3]:
+                            name = assignment.get('name', '')
+                            category = assignment.get('category', '')
+                            due_date = assignment.get('dueDate')
+
+                            # Format date
+                            date_str = ''
+                            if due_date:
+                                date_str = time.strftime('%Y-%m-%d', time.localtime(due_date/1000))
+
+                            # Get score
+                            score_elements = assignment.get('scoreElements', [])
+                            score = "Not graded"
+                            score_percentage = None
+                            if score_elements:
+                                score_info = score_elements[0]
+                                if score_info.get('score') is not None:
+                                    score = f"{score_info.get('score')}"
+                                    score_percentage = score_info.get('scorePercent')
+
+                            class_message += f"• {name}\n"
+                            class_message += f"  📅 Due: {date_str}\n"
+                            class_message += f"  📝 {category}: {self.format_score(score, score_percentage)}\n"
+
+            class_message += "\n"
+
+            # If adding this class would make the message too long, start a new message
+            if len(current_message + class_message) > 3000:
+                messages.append(current_message)
+                current_message = class_message
+            else:
+                current_message += class_message
+
+        # Add the last message if it has content
+        if current_message and has_content:
+            messages.append(current_message)
+        elif not has_content:
+            messages.append("No grades or assignments found for the current term.")
+
+        return messages
+
+    def fetch_formatted_grades(self, title="📚 Current Grades"):
+        """Fetch grades and return formatted messages"""
+        if not self.login():
+            return ["❌ Failed to login to Aspen. Please check credentials."]
+
+        class_list = self.get_class_list()
+        if not class_list:
+            return ["❌ Failed to fetch classes."]
+
+        return self.format_grades_message(class_list, title)
+
     def login(self):
         # Get CSRF token
         login_page = self.session.get(f"{self.base_url}/logon.do")
