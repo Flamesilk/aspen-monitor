@@ -57,7 +57,7 @@ class AspenScraper:
                 continue
 
             has_content = True
-            class_message = f"📘 {course_name}\n"
+            class_message = f"📘 <b>{course_name}</b>\n"
             class_message += "------------------------------\n"
             class_message += f"Grade: {self.format_score(grade or 'No grade', percentage)}\n"
             class_message += f"Teacher: {teacher}\n"
