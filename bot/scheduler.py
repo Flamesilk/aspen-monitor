@@ -26,7 +26,8 @@ async def fetch_and_notify(context: ContextTypes.DEFAULT_TYPE):
                 for message in messages:
                     await context.bot.send_message(
                         chat_id=chat_id,
-                        text=message
+                        text=message,
+                        parse_mode='HTML'
                     )
                 logger.info(f"Sent scheduled update to chat_id: {chat_id}")
             except Exception as e:
