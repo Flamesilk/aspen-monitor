@@ -76,8 +76,7 @@ class AspenScraper:
                         )
 
                         class_message += "\nAssignments:\n"
-                        # Show only the 3 most recent assignments
-                        for assignment in sorted_assignments[:3]:
+                        for assignment in sorted_assignments:
                             name = assignment.get('name', '')
                             category = assignment.get('category', '')
                             due_date = assignment.get('dueDate')
