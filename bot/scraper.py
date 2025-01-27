@@ -26,11 +26,11 @@ class AspenScraper:
             if percentage is not None:
                 score = float(percentage)
                 if score >= 90:
-                    return f'👏 {score_text}'  # Green checkmark for good scores
+                    return f'👏 <b>{score_text}</b>'  # Green checkmark for good scores
                 elif score >= 80:
-                    return f'⚠️ {score_text}'  # Warning symbol for scores between 80 and 89
+                    return f'⚠️ <b>{score_text}</b>'  # Warning symbol for scores between 80 and 89
                 else:
-                    return f'‼️ {score_text}'  # Red cross for scores below 80
+                    return f'‼️ <b>{score_text}</b>'  # Red cross for scores below 80
         except (ValueError, TypeError):
             pass
         return score_text
@@ -75,7 +75,7 @@ class AspenScraper:
                             reverse=True
                         )
 
-                        class_message += "\nRecent Assignments:\n"
+                        class_message += "\nAssignments:\n"
                         # Show only the 3 most recent assignments
                         for assignment in sorted_assignments[:3]:
                             name = assignment.get('name', '')
