@@ -97,7 +97,7 @@ class AspenScraper:
                                     score = f"{score_info.get('score')}"
                                     score_percentage = score_info.get('scorePercent')
 
-                            class_message += f"• {name}\n"
+                            class_message += f"• <i>{name}</i>\n"
                             class_message += f"  📅 Due: {date_str}\n"
                             class_message += f"  📝 {category}: {self.format_score(score, score_percentage)}\n"
 
