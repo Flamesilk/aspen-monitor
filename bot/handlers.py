@@ -70,5 +70,6 @@ async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for message in messages:
         await context.bot.send_message(
             chat_id=chat_id,
-            text=message
+            text=message,
+            parse_mode='HTML'
         )
