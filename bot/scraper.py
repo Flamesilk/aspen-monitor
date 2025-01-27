@@ -26,7 +26,7 @@ class AspenScraper:
             if percentage is not None:
                 score = float(percentage)
                 if score >= 90:
-                    return f'👏 <b>{score_text}</b>'  # Green checkmark for good scores
+                    return f'☘️ <b>{score_text}</b>'  # Green checkmark for good scores
                 elif score >= 80:
                     return f'⚠️ <b>{score_text}</b>'  # Warning symbol for scores between 80 and 89
                 else:
