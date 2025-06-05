@@ -65,7 +65,3 @@ AUTHORIZED_CHAT_IDS=your_chat_id
 Note that if anthor person is using this bot, the corresponding chat ID needs to be added. The `AUTHORIZED_CHAT_IDS` can be a comma separated list.
 
 Remmember to re-deploy after you have modified the environment variables.
-
-
-## Support
-For issues or feature requests, please open an issue in this repository.
