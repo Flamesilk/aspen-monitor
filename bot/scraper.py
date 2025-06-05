@@ -45,6 +45,7 @@ class AspenScraper:
         current_message += ":\n\n"
 
         has_content = False
+        summary_lines = []
 
         for class_info in class_list:
             course_name = class_info.get('courseName', '')
@@ -57,6 +58,10 @@ class AspenScraper:
                 continue
 
             has_content = True
+
+            # Collect summary information
+            summary_lines.append(f"📘 {course_name}: {self.format_score(grade or 'No grade', percentage)}")
+
             class_message = f"📘 <b>{course_name}</b>\n"
             class_message += "------------------------------\n"
             class_message += f"Grade: {self.format_score(grade or 'No grade', percentage)}\n"
@@ -108,6 +113,17 @@ class AspenScraper:
                 current_message = class_message
             else:
                 current_message += class_message
+
+        # Add summary to the last message if there are classes with grades
+        if summary_lines and has_content:
+            summary_section = "\n📊 <b>Summary:</b>\n" + "\n".join(summary_lines) + "\n"
+
+            # Check if adding summary would make message too long
+            if len(current_message + summary_section) > 3000:
+                messages.append(current_message)
+                current_message = summary_section
+            else:
+                current_message += summary_section
 
         # Add the last message if it has content
         if current_message and has_content:
