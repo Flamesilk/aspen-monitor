@@ -116,7 +116,7 @@ class AspenScraper:
 
         # Add summary to the last message if there are classes with grades
         if summary_lines and has_content:
-            summary_section = "\n📊 <b>Summary:</b>\n" + "\n".join(summary_lines) + "\n"
+            summary_section = "\n📊 <b>Grade Summary:</b>\n" + "------------------------------\n" + "\n".join(summary_lines) + "\n"
 
             # Check if adding summary would make message too long
             if len(current_message + summary_section) > 3000:
