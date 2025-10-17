@@ -81,6 +81,7 @@ async def setup_commands(application: Application) -> None:
         BotCommand("status", "Check your account status"),
         BotCommand("donate", "Support the developer"),
         BotCommand("help", "Get help and instructions"),
+        BotCommand("feedback", "Send feedback to the developer"),
         # Note: /admin is intentionally NOT included in the menu
         # It's available as a hidden command for administrators only
     ]
