@@ -803,12 +803,55 @@ async def _admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             timezone = settings.get('timezone', 'America/Chicago') if settings else 'America/Chicago'
             notification_time = settings.get('notification_time', '15:00') if settings else '15:00'
 
+            # Format created timestamp with timezone
+            try:
+                from datetime import datetime
+                import pytz
+
+                created_at = user.get('created_at', 'Unknown')
+                if created_at != 'Unknown' and created_at is not None:
+                    # Handle different timestamp formats
+                    if isinstance(created_at, int):
+                        # Handle integer timestamps (like 1)
+                        if created_at == 1:
+                            created_formatted = 'Recently registered'
+                        else:
+                            # Try to convert from timestamp
+                            created_dt = datetime.fromtimestamp(created_at)
+                            user_tz = pytz.timezone(timezone)
+                            created_dt = user_tz.localize(created_dt)
+                            created_formatted = created_dt.strftime('%Y-%m-%d %H:%M:%S %Z')
+                    elif isinstance(created_at, str):
+                        # Handle string timestamps
+                        if created_at == '1' or created_at == '':
+                            created_formatted = 'Recently registered'
+                        else:
+                            created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            user_tz = pytz.timezone(timezone)
+                            if created_dt.tzinfo is None:
+                                created_dt = pytz.UTC.localize(created_dt)
+                            created_local = created_dt.astimezone(user_tz)
+                            created_formatted = created_local.strftime('%Y-%m-%d %H:%M:%S %Z')
+                    else:
+                        # Handle datetime objects
+                        created_dt = created_at
+                        user_tz = pytz.timezone(timezone)
+                        if created_dt.tzinfo is None:
+                            created_dt = pytz.UTC.localize(created_dt)
+                        created_local = created_dt.astimezone(user_tz)
+                        created_formatted = created_local.strftime('%Y-%m-%d %H:%M:%S %Z')
+                else:
+                    created_formatted = 'Unknown'
+            except Exception as e:
+                logger.error(f"Error formatting timestamp for user {user['telegram_id']}: {e}")
+                created_formatted = f"Invalid timestamp: {user.get('created_at', 'Unknown')}"
+
             message += f"<b>User {i+1}:</b>\n"
             message += f"• ID: {user['telegram_id']}\n"
             message += f"• Username: {user['aspen_username']}\n"
             message += f"• Timezone: {timezone}\n"
             message += f"• Notification: {notification_time}\n"
-            message += f"• Created: {user.get('created_at', 'Unknown')}\n\n"
+            message += f"• Created: {created_formatted}\n\n"
 
         if len(all_users) > 10:
             message += f"... and {len(all_users) - 10} more users"

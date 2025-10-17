@@ -95,6 +95,18 @@ class Database:
             else:
                 logger.warning(f"Could not add notification_time column: {e}")
 
+        # Fix existing users with invalid timestamps
+        try:
+            # Fix various invalid timestamp formats
+            cursor.execute('''
+                UPDATE users
+                SET created_at = datetime('now')
+                WHERE created_at IS NULL OR created_at = '' OR created_at = '1' OR created_at = 1
+            ''')
+            logger.info("Fixed invalid timestamps in existing users")
+        except Exception as e:
+            logger.warning(f"Could not fix timestamps: {e}")
+
         conn.commit()
         conn.close()
         logger.info("Database initialized successfully")
@@ -110,11 +122,24 @@ class Database:
             encrypted_username = self._encrypt(aspen_username)
             encrypted_password = self._encrypt(aspen_password)
 
-            cursor.execute('''
-                INSERT OR REPLACE INTO users
-                (telegram_id, aspen_username, aspen_password, notification_method, last_updated)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (telegram_id, encrypted_username, encrypted_password, notification_method, datetime.utcnow()))
+            # Check if user exists
+            cursor.execute('SELECT telegram_id FROM users WHERE telegram_id = ?', (telegram_id,))
+            existing_user = cursor.fetchone()
+
+            if existing_user:
+                # Update existing user
+                cursor.execute('''
+                    UPDATE users
+                    SET aspen_username = ?, aspen_password = ?, notification_method = ?, last_updated = ?
+                    WHERE telegram_id = ?
+                ''', (encrypted_username, encrypted_password, notification_method, datetime.utcnow(), telegram_id))
+            else:
+                # Insert new user
+                cursor.execute('''
+                    INSERT INTO users
+                    (telegram_id, aspen_username, aspen_password, notification_method, created_at, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (telegram_id, encrypted_username, encrypted_password, notification_method, datetime.utcnow(), datetime.utcnow()))
 
             conn.commit()
             conn.close()
