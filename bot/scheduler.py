@@ -32,6 +32,12 @@ async def fetch_and_notify_user(context: ContextTypes.DEFAULT_TYPE):
             username = user_data['aspen_username']
             password = user_data['aspen_password']
 
+            # Check if it's a weekend (Saturday = 5, Sunday = 6)
+            current_time = datetime.now()
+            if current_time.weekday() >= 5:  # Saturday or Sunday
+                logger.info(f"Skipping notification for user {user_id} - weekend detected (day {current_time.weekday()})")
+                return
+
             logger.info(f"Processing scheduled grade check for user {user_id} ({username})")
 
             # Add random delay to prevent simultaneous requests
