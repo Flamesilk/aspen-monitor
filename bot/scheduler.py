@@ -54,10 +54,12 @@ async def fetch_and_notify_user(context: ContextTypes.DEFAULT_TYPE):
 
             # Add delay information to title
             delay_minutes = int((current_time - scheduled_time).total_seconds() / 60) if current_time > scheduled_time else 0
-            delay_info = f" (delayed {delay_minutes}m)" if delay_minutes > 0 else ""
+
+            # Format current time with date and local timezone
+            formatted_time = current_time.strftime('%A, %B %d, %Y at %I:%M %p %Z')
 
             messages = scraper.fetch_formatted_grades(
-                title=f"📚 Daily Grade Update ({current_time.strftime('%I:%M %p %Z')}){delay_info}"
+                title=f"📚 Daily Grade Update ({formatted_time})"
             )
 
             # Send notifications via Telegram
