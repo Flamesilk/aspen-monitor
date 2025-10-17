@@ -4,7 +4,6 @@ import time
 import json
 import random
 
-from config import ASPEN_USERNAME, ASPEN_PASSWORD
 
 class AspenScraper:
     def __init__(self, username=None, password=None):
@@ -30,8 +29,11 @@ class AspenScraper:
             'Pragma': 'no-cache'
         }
         self.student_id = None
-        self.username = username or ASPEN_USERNAME
-        self.password = password or ASPEN_PASSWORD
+        self.username = username
+        self.password = password
+
+        if not self.username or not self.password:
+            raise ValueError("Username and password are required")
 
     @staticmethod
     def format_score(score_text, percentage=None):

@@ -5,20 +5,22 @@ This repository hosts a lightweight Telegram bot for quickly checking grades and
 ### Key Features:
 - **Fast grade queries**: Get your grades or assignments instantly via Telegram.
 - **Daily updates**: Configure the bot to push daily grade summaries.
-- **Minimal setup**: Just add your Aspen credentials and Telegram bot token.
+- **Multi-user support**: Each user registers with their own Aspen credentials.
+- **Secure credential storage**: User credentials are encrypted and stored safely.
 
-The bot is designed for personal use and requires Aspen credentials. It can be deployed on Railway or Vercel.
+The bot supports multiple users, each with their own Aspen credentials. It can be deployed on Railway or Vercel.
 
 ## Features
 - Real-time grade and assignment updates via Telegram.
-- Secure handling of credentials using environment variables.
+- Multi-user support with individual credential management.
+- Secure credential encryption and storage.
 - Easy deployment on Railway or Vercel.
 
 ## Setup Instructions
 
 ### Prerequisites
 1. Create a Telegram bot and get its token (obtained from [BotFather](https://core.telegram.org/bots#botfather)).
-2. Aspen CPS credentials (username and password).
+2. Aspen CPS credentials (username and password) - each user will register their own.
 
 ### Deployment
 
@@ -29,39 +31,39 @@ The following process uses Railway as example.
 2. Set up environment variables
 
 ```env
-ENV=prod
-ASPEN_USERNAME=your_aspen_username
-ASPEN_PASSWORD=your_aspen_password
+ENV=production
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-WEBHOOK_URL=https://xxx/api/webhook
+WEBHOOK_URL=https://your-app.railway.app/api/webhook
 ```
+
+**Note**: No global Aspen credentials needed - each user will register their own credentials through the bot.
 
 3. Webhook configuration
 
-After deployment, configure the Telegram webhook to point to your deployed URL, in the terminal of your local computer:
+The webhook is automatically configured when your bot starts up! No manual setup required.
 
-```bash
-curl "https://api.telegram.org/bot<your_bot_token>/setWebhook?url=https://your-deployed-url/api/webhook"
-```
+**How it works:**
+- When `ENV=production` and `WEBHOOK_URL` are set, the bot automatically registers the webhook
+- Telegram will send updates to your bot's `/api/webhook` endpoint
+- The bot processes updates and responds automatically
 
-To check the webhook status:
+**Optional: Check webhook status**
+
+To verify the webhook is working:
 
 ```bash
 curl "https://api.telegram.org/bot<your_bot_token>/getWebhookInfo" | python3 -m json.tool
 ```
 
-4. Set up Chat IDs
+4. User Registration
 
-On the Telegram bot, click `/start`, you'll see the following welcome message:
+After deployment, users can start using the bot:
 
-![Screenshot of /start command](screenshots/screenshot-start.jpg)
+1. **Start the bot**: Send `/start` to your Telegram bot
+2. **Register credentials**: Use `/register` to set up your Aspen username and password
+3. **Get grades**: Use `/grades` to fetch your current grades
+4. **Set notifications**: Use `/settings` to configure daily grade updates
 
-Copy the chat ID, and add the following environment variable:
+**Security**: Each user's credentials are encrypted and stored securely. No shared credentials are used.
 
-```
-AUTHORIZED_CHAT_IDS=your_chat_id
-```
-
-Note that if anthor person is using this bot, the corresponding chat ID needs to be added. The `AUTHORIZED_CHAT_IDS` can be a comma separated list.
-
-Remmember to re-deploy after you have modified the environment variables.
+Remember to re-deploy after you have modified the environment variables.

@@ -1,9 +1,6 @@
 import os
 from decouple import config, Csv
 
-ASPEN_USERNAME = config("ASPEN_USERNAME")
-ASPEN_PASSWORD = config("ASPEN_PASSWORD")
-
 ENV = config("ENV", None)
 SERVERLESS = config("SERVERLESS", "False").lower() == "true"
 TELEGRAM_TOKEN = config("TELEGRAM_BOT_TOKEN")
