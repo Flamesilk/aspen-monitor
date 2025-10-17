@@ -3,7 +3,7 @@ from bot.scraper import AspenScraper
 # Email service removed - Telegram only notifications
 from database import Database
 import logging
-from datetime import time, datetime
+from datetime import time, datetime, timedelta
 import pytz
 import asyncio
 import random
@@ -55,8 +55,14 @@ async def fetch_and_notify_user(context: ContextTypes.DEFAULT_TYPE):
             # Add delay information to title
             delay_minutes = int((current_time - scheduled_time).total_seconds() / 60) if current_time > scheduled_time else 0
 
-            # Format current time with date and local timezone
-            formatted_time = current_time.strftime('%A, %B %d, %Y at %I:%M %p %Z')
+            # Get user's timezone and format time in their local timezone
+            settings = db.get_user_settings(user_id)
+            user_timezone = settings.get('timezone', 'America/Chicago') if settings else 'America/Chicago'
+            user_tz = pytz.timezone(user_timezone)
+
+            # Convert current time to user's timezone
+            user_local_time = current_time.astimezone(user_tz)
+            formatted_time = user_local_time.strftime('%A, %B %d, %Y at %I:%M %p %Z')
 
             messages = scraper.fetch_formatted_grades(
                 title=f"📚 Daily Grade Update ({formatted_time})"
@@ -87,6 +93,13 @@ async def fetch_and_notify_user(context: ContextTypes.DEFAULT_TYPE):
 
 def setup_scheduler(app: Application):
     """Setup the job queue with individual user grade checking jobs"""
+    # Clear any existing jobs first to prevent duplicates
+    try:
+        app.job_queue.scheduler.remove_all_jobs()
+        logger.info("Cleared existing scheduled jobs")
+    except Exception as e:
+        logger.warning(f"Could not clear existing jobs: {e}")
+
     # Get timezone
     tz = pytz.timezone(config.TIMEZONE)
 
@@ -119,11 +132,22 @@ def setup_scheduler(app: Application):
 
             # Create individual job for this user
             job_name = f"grade_check_user_{user['telegram_id']}"
+
+            # Calculate next run time to avoid immediate execution
+            now = datetime.now(user_tz)
+            scheduled_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+            # If the scheduled time has already passed today, schedule for tomorrow
+            if scheduled_datetime <= now:
+                scheduled_datetime += timedelta(days=1)
+
+            # Schedule the job to start at the calculated time
             app.job_queue.run_daily(
                 fetch_and_notify_user,
                 time=job_time,
                 name=job_name,
-                data=user  # Pass user data to the job
+                data=user,  # Pass user data to the job
+                job_kwargs={'next_run_time': scheduled_datetime}
             )
 
             logger.info(f"Scheduled grade check for user {user['telegram_id']} at {notification_time} {user_timezone}")
