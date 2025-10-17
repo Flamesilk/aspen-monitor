@@ -47,3 +47,8 @@ htmlcov/
 .tox/
 .pytest_cache/
 .vercel
+
+# Database files (contain user data - should not be in git)
+users.db
+encryption.key
+*.db

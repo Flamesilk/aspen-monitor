@@ -385,18 +385,29 @@ async def set_notification_time(update: Update, context: ContextTypes.DEFAULT_TY
     success = db.update_user_notification_time(update.effective_user.id, time_input)
 
     if success:
-        # Reschedule the user's job with new time
-        await reschedule_user_job(update.effective_user.id, time_input, context)
+        try:
+            # Reschedule the user's job with new time
+            await reschedule_user_job(update.effective_user.id, time_input, context)
 
-        await update.message.reply_text(
-            f"✅ <b>Notification Time Updated!</b>\n\n"
-            f"Your daily grade notifications will now be sent at <code>{time_input}</code>.\n\n"
-            "You can change this anytime in /settings.",
-            parse_mode='HTML'
-        )
+            await update.message.reply_text(
+                f"✅ <b>Notification Time Updated!</b>\n\n"
+                f"Your daily grade notifications will now be sent at <code>{time_input}</code>.\n\n"
+                "You can change this anytime in /settings.",
+                parse_mode='HTML'
+            )
+            logger.info(f"Successfully updated notification time for user {update.effective_user.id} to {time_input}")
+        except Exception as e:
+            logger.error(f"Error rescheduling job for user {update.effective_user.id}: {str(e)}")
+            await update.message.reply_text(
+                f"⚠️ <b>Time Updated but Scheduling Failed</b>\n\n"
+                f"Your notification time was saved as <code>{time_input}</code>, but there was an error scheduling the job.\n\n"
+                "Please try /settings again or contact support if the issue persists.",
+                parse_mode='HTML'
+            )
     else:
+        logger.error(f"Failed to update notification time in database for user {update.effective_user.id}")
         await update.message.reply_text(
-            "❌ Failed to update notification time. Please try again with /settings."
+            "❌ Failed to update notification time in database. Please try again with /settings."
         )
 
     return ConversationHandler.END
@@ -406,10 +417,12 @@ async def reschedule_user_job(telegram_id: int, notification_time: str, context:
     try:
         import pytz
         from datetime import time
+        import random
 
         # Get user data
         user = db.get_user(telegram_id)
         if not user:
+            logger.error(f"User {telegram_id} not found for rescheduling")
             return
 
         # Get user's timezone
@@ -417,16 +430,26 @@ async def reschedule_user_job(telegram_id: int, notification_time: str, context:
         user_timezone = settings.get('timezone', 'America/Chicago') if settings else 'America/Chicago'
         tz = pytz.timezone(user_timezone)
 
-        # Parse time (HH:MM format)
+        # Parse time (HH:MM format) and add random offset
         hour, minute = map(int, notification_time.split(':'))
-        job_time = time(hour=hour, minute=minute, tzinfo=tz)
+
+        # Add random offset to prevent all users hitting at exact same time
+        random_offset = random.choice([0, 15, 30, 45])  # 15-minute interval offset
+        minute += random_offset
+        if minute >= 60:
+            hour += 1
+            minute -= 60
+
+        # Create time object without timezone (job queue handles timezone separately)
+        job_time = time(hour=hour, minute=minute)
 
         # Remove existing job
         job_name = f"grade_check_user_{telegram_id}"
         try:
             context.job_queue.scheduler.remove_job(job_name)
-        except:
-            pass  # Job might not exist yet
+            logger.info(f"Removed existing job for user {telegram_id}")
+        except Exception as e:
+            logger.info(f"No existing job to remove for user {telegram_id}: {e}")
 
         # Create new job with updated time
         context.job_queue.run_daily(
@@ -436,10 +459,10 @@ async def reschedule_user_job(telegram_id: int, notification_time: str, context:
             data=user
         )
 
-        logger.info(f"Rescheduled job for user {telegram_id} at {notification_time}")
+        logger.info(f"Successfully rescheduled job for user {telegram_id} at {notification_time} {user_timezone}")
 
     except Exception as e:
-        logger.error(f"Error rescheduling job for user {telegram_id}: {str(e)}")
+        logger.error(f"Error rescheduling job for user {telegram_id}: {str(e)}", exc_info=True)
 
 # Removed email notification functions - Telegram only
 
