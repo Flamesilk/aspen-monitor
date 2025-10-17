@@ -2,15 +2,27 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import json
+import random
 
 from config import ASPEN_USERNAME, ASPEN_PASSWORD
 
 class AspenScraper:
-    def __init__(self):
+    def __init__(self, username=None, password=None):
         self.session = requests.Session()
         self.base_url = "https://aspen.cps.edu/aspen"
+
+        # Rotate user agents to appear more natural
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0'
+        ]
+
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'User-Agent': random.choice(user_agents),
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'en-US,en;q=0.5',
             'X-Requested-With': 'XMLHttpRequest',
@@ -18,6 +30,8 @@ class AspenScraper:
             'Pragma': 'no-cache'
         }
         self.student_id = None
+        self.username = username or ASPEN_USERNAME
+        self.password = password or ASPEN_PASSWORD
 
     @staticmethod
     def format_score(score_text, percentage=None):
@@ -162,8 +176,8 @@ class AspenScraper:
             'formFocusField': 'username',
             'mobile': 'false',
             'SSOLoginDone': '',
-            'username': ASPEN_USERNAME,
-            'password': ASPEN_PASSWORD,
+            'username': self.username,
+            'password': self.password,
             'submit': 'Log On'
         }
 

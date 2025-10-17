@@ -1,0 +1,8 @@
+{
+  "volumes": [
+    {
+      "name": "data",
+      "mountPath": "/data"
+    }
+  ]
+}

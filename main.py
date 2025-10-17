@@ -2,10 +2,11 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from telegram import Update
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, CallbackQueryHandler
 import uvicorn
 from bot.ptb import ptb, lifespan
-from bot.handlers import start, fetch_grades
+from bot.handlers import (start, fetch_grades, settings, status, donate, help_command,
+                         registration_handler, settings_handler, setup_handler, button_callback)
 from bot.scheduler import setup_scheduler
 import config
 import logging
@@ -22,6 +23,18 @@ app = FastAPI(lifespan=lifespan) if config.ENV else FastAPI()
 # Add handlers
 ptb.add_handler(CommandHandler("start", start))
 ptb.add_handler(CommandHandler("grades", fetch_grades))
+ptb.add_handler(CommandHandler("settings", settings))
+ptb.add_handler(CommandHandler("status", status))
+ptb.add_handler(CommandHandler("donate", donate))
+ptb.add_handler(CommandHandler("help", help_command))
+
+# Add conversation handlers
+ptb.add_handler(registration_handler)
+ptb.add_handler(settings_handler)
+ptb.add_handler(setup_handler)
+
+# Add callback query handler
+ptb.add_handler(CallbackQueryHandler(button_callback))
 
 # Initialize scheduler
 setup_scheduler(ptb)

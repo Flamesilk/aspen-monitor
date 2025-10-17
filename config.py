@@ -12,13 +12,7 @@ TELEGRAM_TOKEN = config("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = config('WEBHOOK_URL', default='')
 DONATION_URL = config("DONATION_URL", None)
 
-# SMTP configuration
-# SMTP_SERVER = config("SMTP_SERVER", "smtp.gmail.com")  # Default to Gmail SMTP
-# SMTP_PORT = int(config("SMTP_PORT", "587"))  # Default TLS port
-# SMTP_USERNAME = config("SMTP_FROM_EMAIL")  # Your email address
-# SMTP_PASSWORD = config("SMTP_PASSWORD")  # Your app password
-# SMTP_FROM_EMAIL = config("SMTP_FROM_EMAIL")  # Can be same as SMTP_USERNAME
-# SMTP_TO_EMAIL = config("SMTP_TO_EMAIL")  # Where to receive feedback
+# Email configuration removed - Telegram only notifications
 
 # GEMINI_API_KEY = config("GEMINI_API_KEY", None)
 
