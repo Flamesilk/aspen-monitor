@@ -2,11 +2,11 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from telegram import Update
-from telegram.ext import CommandHandler, CallbackQueryHandler
+from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import uvicorn
 from bot.ptb import ptb, lifespan
 from bot.handlers import (start, fetch_grades, settings, status, donate, help_command,
-                         admin_stats,
+                         admin_stats, feedback, handle_feedback_message,
                          registration_handler, settings_handler, setup_handler, button_callback)
 from bot.scheduler import setup_scheduler
 import config
@@ -28,6 +28,7 @@ ptb.add_handler(CommandHandler("settings", settings))
 ptb.add_handler(CommandHandler("status", status))
 ptb.add_handler(CommandHandler("donate", donate))
 ptb.add_handler(CommandHandler("help", help_command))
+ptb.add_handler(CommandHandler("feedback", feedback))
 
 # Admin handlers
 ptb.add_handler(CommandHandler("admin", admin_stats))
@@ -37,8 +38,20 @@ ptb.add_handler(registration_handler)
 ptb.add_handler(settings_handler)
 ptb.add_handler(setup_handler)
 
-# Add callback query handler
-ptb.add_handler(CallbackQueryHandler(button_callback))
+# Add feedback message handler
+ptb.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_feedback_message))
+
+# Note: Conversation handlers manage their own callbacks
+# Global callback handler removed to prevent conflicts
+
+# Add debug message handler to catch all messages
+async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debug handler to catch all messages."""
+    if update.message and update.message.text:
+        logger.info(f"Debug: Received message: '{update.message.text}' from user {update.effective_user.id}")
+        logger.info(f"Debug: Current conversation state: {context.user_data}")
+
+ptb.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, debug_message_handler))
 
 # Initialize scheduler
 setup_scheduler(ptb)

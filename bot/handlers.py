@@ -24,7 +24,8 @@ db = Database()
 (REGISTER_USERNAME, REGISTER_PASSWORD,
  SET_CREDENTIALS_USERNAME, SET_CREDENTIALS_PASSWORD,
  SET_NOTIFICATION_TIME, SET_TIMEZONE,
- SETUP_TIMEZONE, SETUP_NOTIFICATION_TIME) = range(8)
+ SETUP_TIMEZONE, SETUP_NOTIFICATION_TIME,
+ FEEDBACK_TYPE, FEEDBACK_MESSAGE) = range(10)
 
 # Common timezones for Aspen users
 COMMON_TIMEZONES = {
@@ -667,6 +668,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚙️ /settings - Manage your account\n"
         "📊 /status - Check your account status\n"
         "💝 /donate - Support the developer\n"
+        "💬 /feedback - Send feedback or report issues\n"
         "❓ /help - Show this help message\n\n"
         "<b>Getting Started:</b>\n"
         "1. Use /register to set up your Aspen credentials\n"
@@ -712,10 +714,12 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _admin_users(update, context)
     elif subcommand == "broadcast":
         await _admin_broadcast(update, context)
+    elif subcommand == "feedback":
+        await _admin_feedback(update, context)
     else:
         await update.message.reply_text(
             "❌ <b>Invalid subcommand</b>\n\n"
-            "Available: stats, users, broadcast\n"
+            "Available: stats, users, broadcast, feedback\n"
             "Example: /admin stats",
             parse_mode='HTML'
         )
@@ -908,11 +912,179 @@ async def _admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Error sending broadcast. Check logs for details."
         )
 
+async def _admin_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show recent feedback messages."""
+    try:
+        # Get recent feedback (last 10 messages)
+        feedback_list = db.get_feedback(limit=10)
+
+        if not feedback_list:
+            await update.message.reply_text("📭 No feedback messages found.")
+            return
+
+        message = f"💬 <b>Recent Feedback</b> (showing last {len(feedback_list)})\n\n"
+
+        for i, feedback in enumerate(feedback_list):
+            # Format timestamp
+            try:
+                from datetime import datetime
+                created_dt = datetime.fromisoformat(feedback['created_at'].replace('Z', '+00:00'))
+                time_str = created_dt.strftime('%Y-%m-%d %H:%M')
+            except:
+                time_str = feedback['created_at']
+
+            # Format feedback type
+            type_emojis = {
+                'bug': '🐛',
+                'feature': '💡',
+                'question': '❓',
+                'general': '💝'
+            }
+            emoji = type_emojis.get(feedback['feedback_type'], '💬')
+
+            message += f"<b>{i+1}. {emoji} {feedback['feedback_type'].title()}</b>\n"
+            message += f"• From: {feedback['first_name']} (@{feedback['username']})\n"
+            message += f"• ID: {feedback['user_id']}\n"
+            message += f"• Time: {time_str}\n"
+            message += f"• Message: {feedback['message'][:100]}{'...' if len(feedback['message']) > 100 else ''}\n\n"
+
+        await update.message.reply_text(message, parse_mode='HTML')
+
+    except Exception as e:
+        logger.error(f"Error in admin_feedback: {str(e)}")
+        await update.message.reply_text(
+            "❌ Error retrieving feedback. Check logs for details."
+        )
+
+async def _notify_admins_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE, user, feedback_type: str, message: str):
+    """Send real-time feedback notification to all admins."""
+    try:
+        # Get feedback type emoji
+        type_emojis = {
+            'bug': '🐛',
+            'feature': '💡',
+            'question': '❓',
+            'general': '💝'
+        }
+        emoji = type_emojis.get(feedback_type, '💬')
+
+        # Format admin notification
+        admin_message = f"🔔 <b>New Feedback Received</b>\n\n"
+        admin_message += f"{emoji} <b>Type:</b> {feedback_type.replace('_', ' ').title()}\n"
+        admin_message += f"👤 <b>From:</b> {user.first_name or 'Unknown'}"
+        if user.username:
+            admin_message += f" (@{user.username})"
+        admin_message += f"\n🆔 <b>User ID:</b> {user.id}\n"
+        admin_message += f"💬 <b>Message:</b>\n{message}\n\n"
+        admin_message += f"<i>Use /admin feedback to view all feedback</i>"
+
+        # Send to all admins
+        for admin_id in config.ADMIN_USER_IDS:
+            try:
+                await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=admin_message,
+                    parse_mode='HTML'
+                )
+            except Exception as e:
+                logger.error(f"Failed to send feedback notification to admin {admin_id}: {e}")
+
+    except Exception as e:
+        logger.error(f"Error notifying admins of feedback: {e}")
+
+# Feedback Commands
+async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start feedback process."""
+    logger.info("Feedback command called")
+
+    # Check if user has already started feedback
+    if 'feedback_text' in context.user_data:
+        await update.message.reply_text(
+            "💬 <b>Feedback Already Started</b>\n\n"
+            "You already have a feedback message in progress. Please send your feedback message now, or use /cancel to start over.",
+            parse_mode='HTML'
+        )
+        return
+
+    await update.message.reply_text(
+        "💬 <b>Send Feedback</b>\n\n"
+        "We'd love to hear from you! Please type your feedback message below:\n\n"
+        "<i>Be as detailed as possible. Your feedback helps us improve the bot!</i>\n\n"
+        "Use /cancel to cancel.",
+        parse_mode='HTML'
+    )
+
+    # Set a flag to indicate feedback is in progress
+    context.user_data['feedback_in_progress'] = True
+
+async def handle_feedback_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle feedback message submission."""
+    # Check if user is in feedback mode
+    if not context.user_data.get('feedback_in_progress'):
+        return
+
+    logger.info("Feedback message handler called")
+
+    feedback_text = update.message.text.strip()
+    logger.info(f"Feedback message: {feedback_text[:100]}...")
+
+    # Get user info
+    user = update.effective_user
+    user_info = {
+        'id': user.id,
+        'username': user.username,
+        'first_name': user.first_name,
+        'last_name': user.last_name
+    }
+
+    logger.info(f"User info: {user_info}")
+
+    # Save feedback to database
+    try:
+        result = db.add_feedback(
+            user_id=user.id,
+            username=user.username or 'Unknown',
+            first_name=user.first_name or 'Unknown',
+            feedback_type='general',  # Default to general feedback
+            message=feedback_text
+        )
+        logger.info(f"Database save result: {result}")
+    except Exception as e:
+        logger.error(f"Database save error: {e}")
+
+    # Send real-time notification to all admins
+    try:
+        await _notify_admins_feedback(update, context, user, 'general', feedback_text)
+        logger.info("Admin notifications sent")
+    except Exception as e:
+        logger.error(f"Admin notification error: {e}")
+
+    # Send confirmation to user
+    try:
+        await update.message.reply_text(
+            "✅ <b>Thank you for your feedback!</b>\n\n"
+            "Your feedback has been received and will be reviewed.\n\n"
+            "We appreciate you taking the time to help us improve the bot! 💙",
+            parse_mode='HTML'
+        )
+        logger.info("User confirmation sent")
+    except Exception as e:
+        logger.error(f"User confirmation error: {e}")
+
+    # Clear user data
+    context.user_data.clear()
+
+
 # Callback query handlers
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
     query = update.callback_query
     await query.answer()
+
+    # Handle feedback callbacks
+    if query.data.startswith("feedback_"):
+        logger.info(f"Handling feedback callback: {query.data}")
+        return await handle_feedback_type(update, context)
 
     if query.data == "update_creds":
         await query.edit_message_text(
@@ -1068,3 +1240,4 @@ setup_handler = ConversationHandler(
     },
     fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)]
 )
+

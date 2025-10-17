@@ -107,6 +107,19 @@ class Database:
         except Exception as e:
             logger.warning(f"Could not fix timestamps: {e}")
 
+        # Create feedback table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT,
+                first_name TEXT,
+                feedback_type TEXT,
+                message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         conn.commit()
         conn.close()
         logger.info("Database initialized successfully")
@@ -202,6 +215,59 @@ class Database:
 
         except Exception as e:
             logger.error(f"Error getting all users: {e}")
+            return []
+
+    def add_feedback(self, user_id: int, username: str, first_name: str, feedback_type: str, message: str) -> bool:
+        """Add feedback to database."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                INSERT INTO feedback (user_id, username, first_name, feedback_type, message)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, username, first_name, feedback_type, message))
+
+            conn.commit()
+            conn.close()
+            logger.info(f"Feedback added from user {user_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding feedback from user {user_id}: {e}")
+            return False
+
+    def get_feedback(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent feedback messages."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT user_id, username, first_name, feedback_type, message, created_at
+                FROM feedback
+                ORDER BY created_at DESC
+                LIMIT ?
+            ''', (limit,))
+
+            feedback_list = cursor.fetchall()
+            conn.close()
+
+            result = []
+            for feedback in feedback_list:
+                result.append({
+                    'user_id': feedback[0],
+                    'username': feedback[1],
+                    'first_name': feedback[2],
+                    'feedback_type': feedback[3],
+                    'message': feedback[4],
+                    'created_at': feedback[5]
+                })
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error getting feedback: {e}")
             return []
 
     def update_user_notification_method(self, telegram_id: int, method: str) -> bool:
