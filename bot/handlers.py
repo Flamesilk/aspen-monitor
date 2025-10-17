@@ -53,6 +53,23 @@ def generate_random_notification_time():
     # Format as HH:MM
     return f"{hour:02d}:{minute:02d}"
 
+def admin_required(func):
+    """Decorator to require admin privileges for certain commands."""
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+
+        if user_id not in config.ADMIN_USER_IDS:
+            await update.message.reply_text(
+                "❌ <b>Access Denied</b>\n\n"
+                "This command is restricted to administrators only.",
+                parse_mode='HTML'
+            )
+            return
+
+        return await func(update, context)
+    return wrapper
+
 async def setup_commands(application: Application) -> None:
     """Setup bot commands in the menu."""
     commands = [
@@ -63,6 +80,8 @@ async def setup_commands(application: Application) -> None:
         BotCommand("status", "Check your account status"),
         BotCommand("donate", "Support the developer"),
         BotCommand("help", "Get help and instructions"),
+        # Note: /admin is intentionally NOT included in the menu
+        # It's available as a hidden command for administrators only
     ]
     await application.bot.set_my_commands(commands)
 
@@ -74,6 +93,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if user:
         await update.message.reply_text(
             f"👋 Welcome back, {update.effective_user.first_name}!\n\n"
+            f"Your chat ID is: {chat_id}\n\n"
             f"Your account is already set up. Use /grades to check your grades or /settings to manage your account."
         )
     else:
@@ -664,6 +684,187 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "If you have issues, make sure your Aspen credentials are correct and try /register again.",
         parse_mode='HTML'
     )
+
+# Admin Commands
+@admin_required
+async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command with subcommands."""
+    if not context.args:
+        # Show admin menu
+        await update.message.reply_text(
+            "🛠️ <b>Admin Panel</b>\n\n"
+            "<b>Available Commands:</b>\n"
+            "📊 /admin stats - Show user statistics\n"
+            "👥 /admin users - Show user details\n"
+            "📢 /admin broadcast [message] - Send announcement\n\n"
+            "<b>Examples:</b>\n"
+            "• /admin stats\n"
+            "• /admin users\n"
+            "• /admin broadcast Hello everyone!",
+            parse_mode='HTML'
+        )
+        return
+
+    subcommand = context.args[0].lower()
+
+    if subcommand == "stats":
+        await _admin_stats(update, context)
+    elif subcommand == "users":
+        await _admin_users(update, context)
+    elif subcommand == "broadcast":
+        await _admin_broadcast(update, context)
+    else:
+        await update.message.reply_text(
+            "❌ <b>Invalid subcommand</b>\n\n"
+            "Available: stats, users, broadcast\n"
+            "Example: /admin stats",
+            parse_mode='HTML'
+        )
+
+async def _admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show admin statistics."""
+    try:
+        # Get all users
+        all_users = db.get_all_active_users()
+        total_users = len(all_users)
+
+        # Get user settings for analysis
+        notification_times = {}
+        timezones = {}
+
+        for user in all_users:
+            settings = db.get_user_settings(user['telegram_id'])
+            if settings:
+                # Notification time distribution
+                time = settings.get('notification_time', '15:00')
+                hour = int(time.split(':')[0])
+                time_slot = f"{hour:02d}:00-{hour:02d}:59"
+                notification_times[time_slot] = notification_times.get(time_slot, 0) + 1
+
+                # Timezone distribution
+                tz = settings.get('timezone', 'America/Chicago')
+                timezones[tz] = timezones.get(tz, 0) + 1
+
+        # Create notification time chart
+        time_chart = "📊 <b>Notification Time Distribution:</b>\n"
+        for time_slot in sorted(notification_times.keys()):
+            count = notification_times[time_slot]
+            bar = "█" * min(count, 20)  # Max 20 bars
+            time_chart += f"{time_slot}: {bar} ({count})\n"
+
+        # Create timezone chart
+        tz_chart = "🌍 <b>Timezone Distribution:</b>\n"
+        for tz in sorted(timezones.keys()):
+            count = timezones[tz]
+            tz_display = tz.replace('America/', '').replace('Pacific/', '')
+            tz_chart += f"{tz_display}: {count} users\n"
+
+        # Recent registrations (last 7 days)
+        from datetime import datetime, timedelta
+        recent_cutoff = datetime.now() - timedelta(days=7)
+        recent_users = 0
+
+        for user in all_users:
+            if user.get('created_at'):
+                try:
+                    created = datetime.fromisoformat(user['created_at'])
+                    if created > recent_cutoff:
+                        recent_users += 1
+                except:
+                    pass
+
+        message = f"📈 <b>Admin Statistics</b>\n\n"
+        message += f"👥 <b>Total Users:</b> {total_users}\n"
+        message += f"🆕 <b>New Users (7 days):</b> {recent_users}\n\n"
+        message += time_chart + "\n" + tz_chart
+
+        await update.message.reply_text(message, parse_mode='HTML')
+
+    except Exception as e:
+        logger.error(f"Error in admin_stats: {str(e)}")
+        await update.message.reply_text(
+            "❌ Error generating statistics. Check logs for details."
+        )
+
+async def _admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show detailed user information."""
+    try:
+        all_users = db.get_all_active_users()
+
+        if not all_users:
+            await update.message.reply_text("📭 No users found.")
+            return
+
+        # Show first 10 users with details
+        message = f"👥 <b>User Details</b> (showing first 10 of {len(all_users)})\n\n"
+
+        for i, user in enumerate(all_users[:10]):
+            settings = db.get_user_settings(user['telegram_id'])
+            timezone = settings.get('timezone', 'America/Chicago') if settings else 'America/Chicago'
+            notification_time = settings.get('notification_time', '15:00') if settings else '15:00'
+
+            message += f"<b>User {i+1}:</b>\n"
+            message += f"• ID: {user['telegram_id']}\n"
+            message += f"• Username: {user['aspen_username']}\n"
+            message += f"• Timezone: {timezone}\n"
+            message += f"• Notification: {notification_time}\n"
+            message += f"• Created: {user.get('created_at', 'Unknown')}\n\n"
+
+        if len(all_users) > 10:
+            message += f"... and {len(all_users) - 10} more users"
+
+        await update.message.reply_text(message, parse_mode='HTML')
+
+    except Exception as e:
+        logger.error(f"Error in admin_users: {str(e)}")
+        await update.message.reply_text(
+            "❌ Error retrieving user information. Check logs for details."
+        )
+
+async def _admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send broadcast message to all users."""
+    # Get message from args (skip the 'broadcast' subcommand)
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "📢 <b>Broadcast Message</b>\n\n"
+            "Usage: /admin broadcast <message>\n\n"
+            "Example: /admin broadcast Hello everyone! The bot will be updated tonight.",
+            parse_mode='HTML'
+        )
+        return
+
+    message_text = " ".join(context.args[1:])  # Skip 'broadcast' subcommand
+
+    try:
+        all_users = db.get_all_active_users()
+        sent_count = 0
+        failed_count = 0
+
+        for user in all_users:
+            try:
+                await context.bot.send_message(
+                    chat_id=user['telegram_id'],
+                    text=f"📢 <b>Announcement</b>\n\n{message_text}",
+                    parse_mode='HTML'
+                )
+                sent_count += 1
+            except Exception as e:
+                logger.error(f"Failed to send broadcast to user {user['telegram_id']}: {e}")
+                failed_count += 1
+
+        await update.message.reply_text(
+            f"📢 <b>Broadcast Complete</b>\n\n"
+            f"✅ Sent: {sent_count}\n"
+            f"❌ Failed: {failed_count}\n"
+            f"📊 Total: {len(all_users)}",
+            parse_mode='HTML'
+        )
+
+    except Exception as e:
+        logger.error(f"Error in admin_broadcast: {str(e)}")
+        await update.message.reply_text(
+            "❌ Error sending broadcast. Check logs for details."
+        )
 
 # Callback query handlers
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

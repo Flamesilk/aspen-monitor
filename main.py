@@ -6,6 +6,7 @@ from telegram.ext import CommandHandler, CallbackQueryHandler
 import uvicorn
 from bot.ptb import ptb, lifespan
 from bot.handlers import (start, fetch_grades, settings, status, donate, help_command,
+                         admin_stats,
                          registration_handler, settings_handler, setup_handler, button_callback)
 from bot.scheduler import setup_scheduler
 import config
@@ -27,6 +28,9 @@ ptb.add_handler(CommandHandler("settings", settings))
 ptb.add_handler(CommandHandler("status", status))
 ptb.add_handler(CommandHandler("donate", donate))
 ptb.add_handler(CommandHandler("help", help_command))
+
+# Admin handlers
+ptb.add_handler(CommandHandler("admin", admin_stats))
 
 # Add conversation handlers
 ptb.add_handler(registration_handler)

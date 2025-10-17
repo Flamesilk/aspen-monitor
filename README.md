@@ -66,4 +66,15 @@ After deployment, users can start using the bot:
 
 **Security**: Each user's credentials are encrypted and stored securely. No shared credentials are used.
 
+## Admin Features
+
+For administrators, the bot includes hidden admin commands:
+
+- **`/admin`** - Access admin panel (hidden from menu)
+- **`/admin stats`** - View user statistics and notification time distribution
+- **`/admin users`** - Show detailed user information
+- **`/admin broadcast <message>`** - Send announcements to all users
+
+**Setup**: Add your Telegram ID to `ADMIN_USER_IDS` environment variable (comma-separated for multiple admins).
+
 Remember to re-deploy after you have modified the environment variables.

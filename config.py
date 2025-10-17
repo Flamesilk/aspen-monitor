@@ -22,3 +22,9 @@ AUTHORIZED_CHAT_IDS = [
     int(chat_id)
     for chat_id in config('AUTHORIZED_CHAT_IDS', default='', cast=Csv())
 ]
+
+# Admin user IDs (comma-separated list)
+ADMIN_USER_IDS = [
+    int(chat_id)
+    for chat_id in config('ADMIN_USER_IDS', default='', cast=Csv())
+]
