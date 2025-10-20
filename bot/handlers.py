@@ -698,11 +698,13 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>Available Commands:</b>\n"
             "📊 /admin stats - Show user statistics\n"
             "👥 /admin users - Show user details\n"
-            "📢 /admin broadcast [message] - Send announcement\n\n"
+            "📢 /admin broadcast [message] - Send announcement\n"
+            "💬 /admin feedback - Show recent feedback messages\n\n"
             "<b>Examples:</b>\n"
             "• /admin stats\n"
             "• /admin users\n"
-            "• /admin broadcast Hello everyone!",
+            "• /admin broadcast Hello everyone!\n"
+            "• /admin feedback",
             parse_mode='HTML'
         )
         return
