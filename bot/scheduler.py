@@ -139,7 +139,7 @@ def setup_scheduler(app: Application):
             scheduled_utc = scheduled_datetime.astimezone(pytz.UTC)
 
             # Create timezone-naive time object in UTC for the scheduler
-            job_time_utc = time(hour=scheduled_utc.hour, minute=scheduled_utc.minute)
+            job_time_utc = time(hour=scheduled_utc.hour, minute=scheduled_utc.minute, second=scheduled_utc.second)
 
             # Schedule the job to start at the calculated time
             app.job_queue.run_daily(
