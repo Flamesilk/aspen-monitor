@@ -121,19 +121,15 @@ def setup_scheduler(app: Application):
             hour, minute = map(int, notification_time.split(':'))
 
             # Add small random offset to prevent all users hitting at exact same time
-            # Use 0-3 minute offset for minimal disruption to user's preferred time
-            random_offset = random.randint(0, 3)  # 0-3 minute offset
-            minute += random_offset
-            if minute >= 60:
-                hour += 1
-                minute -= 60
+            # Use 0-60 second offset for minimal disruption to user's preferred time
+            random_offset_seconds = random.randint(0, 60)  # 0-60 second offset
 
             # Create individual job for this user
             job_name = f"grade_check_user_{user['telegram_id']}"
 
             # Calculate next run time in user's timezone, then convert to UTC
             now = datetime.now(user_tz)
-            scheduled_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            scheduled_datetime = now.replace(hour=hour, minute=minute, second=random_offset_seconds, microsecond=0)
 
             # If the scheduled time has already passed today, schedule for tomorrow
             if scheduled_datetime <= now:
