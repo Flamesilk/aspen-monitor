@@ -120,9 +120,9 @@ def setup_scheduler(app: Application):
             # Parse time (HH:MM format) and add random offset
             hour, minute = map(int, notification_time.split(':'))
 
-            # Add random offset to prevent all users hitting at exact same time
-            # Use 15-minute intervals for better distribution
-            random_offset = random.choice([0, 15, 30, 45])  # 15-minute interval offset
+            # Add small random offset to prevent all users hitting at exact same time
+            # Use 0-3 minute offset for minimal disruption to user's preferred time
+            random_offset = random.randint(0, 3)  # 0-3 minute offset
             minute += random_offset
             if minute >= 60:
                 hour += 1
