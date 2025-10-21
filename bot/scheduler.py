@@ -128,12 +128,10 @@ def setup_scheduler(app: Application):
                 hour += 1
                 minute -= 60
 
-            job_time = time(hour=hour, minute=minute, tzinfo=user_tz)
-
             # Create individual job for this user
             job_name = f"grade_check_user_{user['telegram_id']}"
 
-            # Calculate next run time to avoid immediate execution
+            # Calculate next run time in user's timezone, then convert to UTC
             now = datetime.now(user_tz)
             scheduled_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
@@ -141,13 +139,19 @@ def setup_scheduler(app: Application):
             if scheduled_datetime <= now:
                 scheduled_datetime += timedelta(days=1)
 
+            # Convert to UTC for the scheduler (Telegram Bot expects UTC times)
+            scheduled_utc = scheduled_datetime.astimezone(pytz.UTC)
+
+            # Create timezone-naive time object in UTC for the scheduler
+            job_time_utc = time(hour=scheduled_utc.hour, minute=scheduled_utc.minute)
+
             # Schedule the job to start at the calculated time
             app.job_queue.run_daily(
                 fetch_and_notify_user,
-                time=job_time,
+                time=job_time_utc,
                 name=job_name,
                 data=user,  # Pass user data to the job
-                job_kwargs={'next_run_time': scheduled_datetime}
+                job_kwargs={'next_run_time': scheduled_utc}
             )
 
             logger.info(f"Scheduled grade check for user {user['telegram_id']} at {notification_time} {user_timezone}")
