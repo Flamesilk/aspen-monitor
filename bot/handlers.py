@@ -454,39 +454,56 @@ async def reschedule_user_job(telegram_id: int, notification_time: str, context:
 
         # Parse time (HH:MM format) and add random offset
         hour, minute = map(int, notification_time.split(':'))
+        logger.info(f"User {telegram_id} - Reschedule: Original notification time: {notification_time} ({hour}:{minute:02d})")
 
-        # Add random offset to prevent all users hitting at exact same time
-        random_offset = random.choice([0, 15, 30, 45])  # 15-minute interval offset
-        minute += random_offset
-        if minute >= 60:
-            hour += 1
-            minute -= 60
+        # Add small random offset to prevent all users hitting at exact same time
+        # Use 0-59 second offset for minimal disruption to user's preferred time
+        random_offset_seconds = random.randint(0, 30)  # 0-30 second offset
+        logger.info(f"User {telegram_id} - Reschedule: Random offset: {random_offset_seconds} seconds")
 
-        # Create time object without timezone (job queue handles timezone separately)
-        job_time = time(hour=hour, minute=minute)
+        # Calculate next run time in user's timezone, then convert to UTC
+        from datetime import datetime, timedelta
+        now = datetime.now(tz)
+        logger.info(f"User {telegram_id} - Reschedule: Current time in user timezone: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+        scheduled_datetime = now.replace(hour=hour, minute=minute, second=random_offset_seconds, microsecond=0)
+        logger.info(f"User {telegram_id} - Reschedule: Scheduled datetime in user timezone: {scheduled_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+        # If the scheduled time has already passed today, schedule for tomorrow
+        if scheduled_datetime <= now:
+            scheduled_datetime += timedelta(days=1)
+            logger.info(f"User {telegram_id} - Reschedule: Time has passed today, scheduling for tomorrow: {scheduled_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+        # Convert to UTC for the scheduler (Telegram Bot expects UTC times)
+        scheduled_utc = scheduled_datetime.astimezone(pytz.UTC)
+        logger.info(f"User {telegram_id} - Reschedule: Converted to UTC: {scheduled_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+        # Create timezone-naive time object in UTC for the scheduler
+        job_time = time(hour=scheduled_utc.hour, minute=scheduled_utc.minute, second=scheduled_utc.second)
+        logger.info(f"User {telegram_id} - Reschedule: Job time UTC (timezone-naive): {job_time}")
 
         # Remove existing job
         job_name = f"grade_check_user_{telegram_id}"
         try:
             context.job_queue.scheduler.remove_job(job_name)
-            logger.info(f"Removed existing job for user {telegram_id}")
+            logger.info(f"User {telegram_id} - Reschedule: Removed existing job")
         except Exception as e:
-            logger.info(f"No existing job to remove for user {telegram_id}: {e}")
+            logger.info(f"User {telegram_id} - Reschedule: No existing job to remove: {e}")
 
         # Create new job with updated time
         context.job_queue.run_daily(
             fetch_and_notify_user,
             time=job_time,
             name=job_name,
-            data=user
+            data=user,
+            job_kwargs={'next_run_time': scheduled_utc}
         )
 
-        logger.info(f"Successfully rescheduled job for user {telegram_id} at {notification_time} {user_timezone}")
+        logger.info(f"User {telegram_id} - Reschedule: Job scheduled successfully")
+        logger.info(f"User {telegram_id} - Reschedule: Summary: {notification_time} {user_timezone} -> {job_time} UTC (next_run_time: {scheduled_utc.strftime('%Y-%m-%d %H:%M:%S %Z')})")
 
     except Exception as e:
         logger.error(f"Error rescheduling job for user {telegram_id}: {str(e)}", exc_info=True)
-
-# Removed email notification functions - Telegram only
 
 async def fetch_grades(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /grades command - fetches current grades and assignments"""
@@ -596,6 +613,14 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Get user settings for notification time and timezone
+    settings = db.get_user_settings(chat_id)
+    notification_time = settings.get('notification_time', '15:00') if settings else '15:00'
+    user_timezone = settings.get('timezone', 'America/Chicago') if settings else 'America/Chicago'
+
+    # Format timezone for display
+    timezone_display = user_timezone.replace('_', ' ').replace('/', ' / ')
+
     # Format timestamps with timezone info
     from datetime import datetime
     import pytz
@@ -631,6 +656,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ Account: Active\n"
         f"👤 Username: <code>{user['aspen_username']}</code>\n"
         f"🔔 Notifications: <code>Telegram</code>\n"
+        f"⏰ Notification Time: <code>{notification_time}</code> <code>{timezone_display}</code>\n"
         f"📅 Created: <code>{created_utc}</code>\n"
         f"🔄 Last Updated: <code>{last_updated_utc}</code>",
         parse_mode='HTML'

@@ -16,7 +16,7 @@ db = Database()
 
 # Rate limiting and request spacing
 REQUEST_DELAY_MIN = 30  # Minimum 30 seconds between requests
-REQUEST_DELAY_MAX = 120  # Maximum 2 minutes between requests
+REQUEST_DELAY_MAX = 60  # Maximum 1 minutes between requests
 MAX_CONCURRENT_REQUESTS = 3  # Maximum concurrent requests to Aspen
 
 # Global request queue and semaphore
@@ -32,8 +32,14 @@ async def fetch_and_notify_user(context: ContextTypes.DEFAULT_TYPE):
             username = user_data['aspen_username']
             password = user_data['aspen_password']
 
-            # Check if it's a weekend (Saturday = 5, Sunday = 6)
+            # Log the actual execution time
             current_time = datetime.now()
+            logger.info(f"=== NOTIFICATION EXECUTION ===")
+            logger.info(f"User {user_id} - Job executed at: {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            logger.info(f"User {user_id} - Job name: {context.job.name}")
+            logger.info(f"User {user_id} - Job scheduled time: {getattr(context.job, 'scheduled_time', 'Unknown')}")
+
+            # Check if it's a weekend (Saturday = 5, Sunday = 6)
             if current_time.weekday() >= 5:  # Saturday or Sunday
                 logger.info(f"Skipping notification for user {user_id} - weekend detected (day {current_time.weekday()})")
                 return
@@ -119,27 +125,35 @@ def setup_scheduler(app: Application):
 
             # Parse time (HH:MM format) and add random offset
             hour, minute = map(int, notification_time.split(':'))
+            logger.info(f"User {user['telegram_id']} - Original notification time: {notification_time} ({hour}:{minute:02d})")
 
             # Add small random offset to prevent all users hitting at exact same time
-            # Use 0-60 second offset for minimal disruption to user's preferred time
-            random_offset_seconds = random.randint(0, 60)  # 0-60 second offset
+            # Use 0-59 second offset for minimal disruption to user's preferred time
+            random_offset_seconds = random.randint(0, 30)  # 0-30 second offset
+            logger.info(f"User {user['telegram_id']} - Random offset: {random_offset_seconds} seconds")
 
             # Create individual job for this user
             job_name = f"grade_check_user_{user['telegram_id']}"
 
             # Calculate next run time in user's timezone, then convert to UTC
             now = datetime.now(user_tz)
+            logger.info(f"User {user['telegram_id']} - Current time in user timezone: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
             scheduled_datetime = now.replace(hour=hour, minute=minute, second=random_offset_seconds, microsecond=0)
+            logger.info(f"User {user['telegram_id']} - Scheduled datetime in user timezone: {scheduled_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
             # If the scheduled time has already passed today, schedule for tomorrow
             if scheduled_datetime <= now:
                 scheduled_datetime += timedelta(days=1)
+                logger.info(f"User {user['telegram_id']} - Time has passed today, scheduling for tomorrow: {scheduled_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
             # Convert to UTC for the scheduler (Telegram Bot expects UTC times)
             scheduled_utc = scheduled_datetime.astimezone(pytz.UTC)
+            logger.info(f"User {user['telegram_id']} - Converted to UTC: {scheduled_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
             # Create timezone-naive time object in UTC for the scheduler
             job_time_utc = time(hour=scheduled_utc.hour, minute=scheduled_utc.minute, second=scheduled_utc.second)
+            logger.info(f"User {user['telegram_id']} - Job time UTC (timezone-naive): {job_time_utc}")
 
             # Schedule the job to start at the calculated time
             app.job_queue.run_daily(
@@ -150,7 +164,8 @@ def setup_scheduler(app: Application):
                 job_kwargs={'next_run_time': scheduled_utc}
             )
 
-            logger.info(f"Scheduled grade check for user {user['telegram_id']} at {notification_time} {user_timezone}")
+            logger.info(f"User {user['telegram_id']} - Job scheduled successfully")
+            logger.info(f"User {user['telegram_id']} - Summary: {notification_time} {user_timezone} -> {job_time_utc} UTC (next_run_time: {scheduled_utc.strftime('%Y-%m-%d %H:%M:%S %Z')})")
 
         except Exception as e:
             logger.error(f"Error setting up job for user {user['telegram_id']}: {str(e)}")
