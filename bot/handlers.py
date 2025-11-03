@@ -158,6 +158,7 @@ async def register_username(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "• You can delete your account anytime",
             parse_mode='HTML'
         )
+        return SET_CREDENTIALS_PASSWORD
     else:
         await update.message.reply_text(
             f"✅ Username saved: <code>{username}</code>\n\n"
@@ -169,7 +170,7 @@ async def register_username(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "• You can delete your account anytime",
             parse_mode='HTML'
         )
-    return REGISTER_PASSWORD
+        return REGISTER_PASSWORD
 
 async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Store password and complete registration."""
