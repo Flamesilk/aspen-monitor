@@ -1,5 +1,6 @@
 from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply, ReplyKeyboardMarkup
 from telegram.constants import ChatAction
+from telegram.error import TelegramError
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from database import Database
 from bot.scraper import AspenScraper
@@ -116,12 +117,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parse_mode='HTML'
         )
 
+async def _fallback_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start(update, context)
+    return ConversationHandler.END
+
+
+async def _fallback_to_register(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Resetting flow. Please send /register again.")
+    return ConversationHandler.END
+
+
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start registration process."""
-    chat_id = update.effective_chat.id
+    context.user_data.clear()
+
+    user_id = update.effective_user.id
 
     # Check if user already exists
-    if db.get_user(chat_id):
+    if db.get_user(user_id):
         await update.message.reply_text(
             "You're already registered! Use /settings to update your information or /grades to check your grades."
         )
@@ -263,6 +276,7 @@ async def setup_timezone_selection(update: Update, context: ContextTypes.DEFAULT
 
         # Update user's timezone
         success = db.update_user_timezone(query.from_user.id, timezone)
+        chat_id = update.effective_chat.id if update.effective_chat else query.from_user.id
 
         if success:
             # Get display name for confirmation
@@ -272,20 +286,37 @@ async def setup_timezone_selection(update: Update, context: ContextTypes.DEFAULT
                     timezone_display = display
                     break
 
-            await query.edit_message_text(
-                f"✅ <b>Timezone Set!</b>\n\n"
+            confirmation_text = (
+                "✅ <b>Timezone Set!</b>\n\n"
                 f"Your timezone has been set to <b>{timezone_display}</b>.\n\n"
-                f"<b>Next, let's set your notification time:</b>",
-                parse_mode='HTML',
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⏰ Set Notification Time", callback_data="setup_notification_time")],
-                    [InlineKeyboardButton("✅ Complete Setup", callback_data="setup_complete")]
-                ])
+                "Next, choose whether to set a notification time now or keep the default."
+            )
+
+            try:
+                await query.edit_message_text(
+                    "✅ Timezone updated! Choose the next step:",
+                    parse_mode='HTML',
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⏰ Set Notification Time", callback_data="setup_notification_time")],
+                        [InlineKeyboardButton("✅ Complete Setup", callback_data="setup_complete")]
+                    ])
+                )
+            except TelegramError as e:
+                logger.warning(f"Failed to edit setup timezone confirmation for user {query.from_user.id}: {e}")
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=confirmation_text,
+                parse_mode='HTML'
             )
         else:
-            await query.edit_message_text(
-                "❌ Failed to update timezone. Please try again with /settings."
-            )
+            error_text = "❌ Failed to update timezone. Please try again with /settings."
+            try:
+                await query.edit_message_text(error_text)
+            except TelegramError as e:
+                logger.warning(f"Failed to edit setup timezone failure message for user {query.from_user.id}: {e}")
+
+            await context.bot.send_message(chat_id=chat_id, text=error_text)
         return ConversationHandler.END
 
     elif query.data == "setup_complete":
@@ -342,15 +373,20 @@ async def setup_notification_time_input(update: Update, context: ContextTypes.DE
     success = db.update_user_notification_time(update.effective_user.id, time_input)
 
     if success:
-        await update.message.reply_text(
-            f"✅ <b>Notification Time Set!</b>\n\n"
+        confirmation_text = (
+            "✅ <b>Notification Time Set!</b>\n\n"
             f"Your daily grade notifications will be sent at <code>{time_input}</code>.\n\n"
-            f"<b>Setup Complete!</b> You can change these settings anytime in /settings.",
+            "<b>Setup Complete!</b> You can change these settings anytime in /settings."
+        )
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=confirmation_text,
             parse_mode='HTML'
         )
     else:
-        await update.message.reply_text(
-            "❌ Failed to update notification time. You can change this later in /settings."
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="❌ Failed to update notification time. You can change this later in /settings."
         )
 
     return ConversationHandler.END
@@ -406,31 +442,41 @@ async def set_notification_time(update: Update, context: ContextTypes.DEFAULT_TY
 
     # Update user's notification time
     success = db.update_user_notification_time(update.effective_user.id, time_input)
+    chat_id = update.effective_chat.id
 
     if success:
         try:
             # Reschedule the user's job with new time
             await reschedule_user_job(update.effective_user.id, time_input, context)
 
-            await update.message.reply_text(
-                f"✅ <b>Notification Time Updated!</b>\n\n"
+            confirmation_text = (
+                "✅ <b>Notification Time Updated!</b>\n\n"
                 f"Your daily grade notifications will now be sent at <code>{time_input}</code>.\n\n"
-                "You can change this anytime in /settings.",
+                "You can change this anytime in /settings."
+            )
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=confirmation_text,
                 parse_mode='HTML'
             )
             logger.info(f"Successfully updated notification time for user {update.effective_user.id} to {time_input}")
         except Exception as e:
             logger.error(f"Error rescheduling job for user {update.effective_user.id}: {str(e)}")
-            await update.message.reply_text(
-                f"⚠️ <b>Time Updated but Scheduling Failed</b>\n\n"
+            warning_text = (
+                "⚠️ <b>Time Updated but Scheduling Failed</b>\n\n"
                 f"Your notification time was saved as <code>{time_input}</code>, but there was an error scheduling the job.\n\n"
-                "Please try /settings again or contact support if the issue persists.",
+                "Please try /settings again or contact support if the issue persists."
+            )
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=warning_text,
                 parse_mode='HTML'
             )
     else:
         logger.error(f"Failed to update notification time in database for user {update.effective_user.id}")
-        await update.message.reply_text(
-            "❌ Failed to update notification time in database. Please try again with /settings."
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ Failed to update notification time in database. Please try again with /settings."
         )
 
     return ConversationHandler.END
@@ -1161,28 +1207,44 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("timezone_"):
         timezone = query.data.replace("timezone_", "")
 
-        # Update user's timezone
         success = db.update_user_timezone(query.from_user.id, timezone)
+        chat_id = update.effective_chat.id if update.effective_chat else query.from_user.id
 
         if success:
-            # Get display name for confirmation
             timezone_display = "Unknown"
             for display, tz in COMMON_TIMEZONES.items():
                 if tz == timezone:
                     timezone_display = display
                     break
 
-            await query.edit_message_text(
-                f"✅ <b>Timezone Updated!</b>\n\n"
+            confirmation_text = (
+                "✅ <b>Timezone Updated!</b>\n\n"
                 f"Your timezone has been set to <b>{timezone_display}</b>.\n\n"
-                f"Grade notifications will now be sent according to your local time.\n\n"
-                f"Use /settings to change this anytime.",
+                "Grade notifications will now be sent according to your local time.\n\n"
+                "Use /settings to change this anytime."
+            )
+
+            try:
+                await query.edit_message_text(
+                    "✅ Timezone updated! Sending confirmation…",
+                    parse_mode='HTML'
+                )
+            except TelegramError as e:
+                logger.warning(f"Failed to edit timezone confirmation message for user {query.from_user.id}: {e}")
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=confirmation_text,
                 parse_mode='HTML'
             )
         else:
-            await query.edit_message_text(
-                "❌ Failed to update timezone. Please try again with /settings."
-            )
+            error_text = "❌ Failed to update timezone. Please try again with /settings."
+            try:
+                await query.edit_message_text(error_text)
+            except TelegramError as e:
+                logger.warning(f"Failed to edit timezone failure message for user {query.from_user.id}: {e}")
+
+            await context.bot.send_message(chat_id=chat_id, text=error_text)
         return ConversationHandler.END
 
     elif query.data == "cancel_timezone":
@@ -1219,6 +1281,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "confirm_delete":
         success = db.delete_user(update.effective_user.id)
+        context.user_data.clear()
         if success:
             await query.edit_message_text(
                 "🗑️ <b>Account Deleted</b>\n\n"
@@ -1248,7 +1311,8 @@ registration_handler = ConversationHandler(
         REGISTER_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_username)],
         REGISTER_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_password)],
     },
-    fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)]
+    fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+    allow_reentry=True
 )
 
 settings_handler = ConversationHandler(
@@ -1259,7 +1323,11 @@ settings_handler = ConversationHandler(
         SET_NOTIFICATION_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_notification_time)],
         SET_TIMEZONE: [CallbackQueryHandler(button_callback)],
     },
-    fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)]
+    fallbacks=[
+        CommandHandler("cancel", lambda u, c: ConversationHandler.END),
+        CommandHandler("start", _fallback_start),
+        CommandHandler("register", _fallback_to_register),
+    ]
 )
 
 setup_handler = ConversationHandler(
@@ -1268,6 +1336,10 @@ setup_handler = ConversationHandler(
         SETUP_TIMEZONE: [CallbackQueryHandler(button_callback)],
         SETUP_NOTIFICATION_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, setup_notification_time_input)],
     },
-    fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)]
+    fallbacks=[
+        CommandHandler("cancel", lambda u, c: ConversationHandler.END),
+        CommandHandler("start", _fallback_start),
+        CommandHandler("register", _fallback_to_register),
+    ]
 )
 

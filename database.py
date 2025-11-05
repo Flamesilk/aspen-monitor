@@ -392,11 +392,13 @@ class Database:
             cursor = conn.cursor()
 
             cursor.execute('DELETE FROM users WHERE telegram_id = ?', (telegram_id,))
+            affected_users = cursor.rowcount
             cursor.execute('DELETE FROM user_settings WHERE telegram_id = ?', (telegram_id,))
+            affected_settings = cursor.rowcount
 
             conn.commit()
             conn.close()
-            return cursor.rowcount > 0
+            return (affected_users + affected_settings) > 0
 
         except Exception as e:
             logger.error(f"Error deleting user {telegram_id}: {e}")
