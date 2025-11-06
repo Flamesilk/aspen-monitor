@@ -25,8 +25,9 @@ db = Database()
 (REGISTER_USERNAME, REGISTER_PASSWORD,
  SET_CREDENTIALS_USERNAME, SET_CREDENTIALS_PASSWORD,
  SET_NOTIFICATION_TIME, SET_TIMEZONE,
+ SETTINGS_MENU,
  SETUP_TIMEZONE, SETUP_NOTIFICATION_TIME,
- FEEDBACK_TYPE, FEEDBACK_MESSAGE) = range(10)
+ FEEDBACK_TYPE, FEEDBACK_MESSAGE) = range(11)
 
 # Common timezones for Aspen users
 COMMON_TIMEZONES = {
@@ -599,7 +600,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ You're not registered yet!\n\n"
             "Please use /register to set up your Aspen account first."
         )
-        return
+        return ConversationHandler.END
 
     # Get user settings to show current notification time and timezone
     settings = db.get_user_settings(chat_id)
@@ -647,6 +648,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='HTML',
         reply_markup=reply_markup
     )
+    return SETTINGS_MENU
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show user account status."""
@@ -1278,6 +1280,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML',
             reply_markup=reply_markup
         )
+        return SETTINGS_MENU
 
     elif query.data == "confirm_delete":
         success = db.delete_user(update.effective_user.id)
@@ -1315,19 +1318,29 @@ registration_handler = ConversationHandler(
     allow_reentry=True
 )
 
+_settings_callback_pattern = (
+    r"^(update_creds|set_notification_time|set_timezone|delete_account|"
+    r"confirm_delete|cancel_delete|timezone_.+|cancel_timezone)$"
+)
+
 settings_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(button_callback)],
+    entry_points=[
+        CommandHandler("settings", settings),
+        CallbackQueryHandler(button_callback, pattern=_settings_callback_pattern),
+    ],
     states={
+        SETTINGS_MENU: [CallbackQueryHandler(button_callback, pattern=_settings_callback_pattern)],
         SET_CREDENTIALS_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_username)],
         SET_CREDENTIALS_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_password)],
         SET_NOTIFICATION_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_notification_time)],
-        SET_TIMEZONE: [CallbackQueryHandler(button_callback)],
+        SET_TIMEZONE: [CallbackQueryHandler(button_callback, pattern=_settings_callback_pattern)],
     },
     fallbacks=[
         CommandHandler("cancel", lambda u, c: ConversationHandler.END),
         CommandHandler("start", _fallback_start),
         CommandHandler("register", _fallback_to_register),
-    ]
+    ],
+    allow_reentry=True
 )
 
 setup_handler = ConversationHandler(

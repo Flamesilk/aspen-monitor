@@ -5,9 +5,9 @@ from telegram import Update
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import uvicorn
 from bot.ptb import ptb, lifespan
-from bot.handlers import (start, fetch_grades, settings, status, donate, help_command,
+from bot.handlers import (start, fetch_grades, status, donate, help_command,
                          admin_stats, feedback, handle_feedback_message,
-                         registration_handler, settings_handler, setup_handler, button_callback)
+                         registration_handler, settings_handler, setup_handler)
 from bot.scheduler import setup_scheduler
 import config
 import logging
@@ -24,7 +24,6 @@ app = FastAPI(lifespan=lifespan) if config.ENV else FastAPI()
 # Add handlers
 ptb.add_handler(CommandHandler("start", start))
 ptb.add_handler(CommandHandler("grades", fetch_grades))
-ptb.add_handler(CommandHandler("settings", settings))
 ptb.add_handler(CommandHandler("status", status))
 ptb.add_handler(CommandHandler("donate", donate))
 ptb.add_handler(CommandHandler("help", help_command))
